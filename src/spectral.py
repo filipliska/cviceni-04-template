@@ -41,6 +41,7 @@ from sklearn.cluster import KMeans
 from src.base import Clusterer
 from src.distance import Distance
 
+
 class SpectralClustering(Clusterer):
     """
     Spektrální shlukování.
@@ -175,13 +176,16 @@ class SpectralClustering(Clusterer):
         np.ndarray
             Symetrická afinitní matice o rozměru (n_vzorků, n_vzorků).
         """
-        # assert  Ověřte, že x je typu np.ndarray
-        # assert  Ověřte počet dimenzí x (musí být 2D: n_vzorků x n_příznaků)
-        raise NotImplementedError(
-            "Úkol: Implementujte sestavení afinitní matice W pomocí Gaussova jádra "
-            "W[i, j] = exp(-d(i, j)^2 / (2 * sigma^2)),"
-            "kde d(i, j) = self.distance.calculate(x[i], x[j])."
-        )
+        assert isinstance(x, np.ndarray), "x musí být typu np.ndarray"
+        assert x.ndim == 2, "x musí být 2D pole (n_vzorků x n_příznaků)"
+
+        n = x.shape[0]
+        w = np.zeros((n, n), dtype=float)
+        for i in range(n):
+            for j in range(n):
+                d = self.distance.calculate(x[i], x[j])
+                w[i, j] = np.exp(-(d ** 2) / (2 * (self.sigma ** 2)))
+        return w
 
     def _laplacian(self, w: np.ndarray) -> np.ndarray:
         """
@@ -212,11 +216,13 @@ class SpectralClustering(Clusterer):
             Nenormalizovaný Laplacián grafu L = D - W o rozměru
             (n_vzorků, n_vzorků).
         """
-        # assert  Ověřte, že w je čtvercová (a symetrická) matice
-        raise NotImplementedError(
-            "Úkol: Implementujte sestavení Laplaciánu grafu L = D - W, kde D je diagonální "
-            "matice stupňů (součty řádků W na diagonále)."
-        )
+        assert isinstance(w, np.ndarray), "w musí být typu np.ndarray"
+        assert w.ndim == 2 and w.shape[0] == w.shape[1], "w musí být čtvercová matice"
+
+        d_diag = np.sum(w, axis=1)
+        d = np.diag(d_diag)
+        l = d - w
+        return l
 
     def _spectral_embedding(self, l: np.ndarray, k: int) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -264,9 +270,10 @@ class SpectralClustering(Clusterer):
                 seřazené vzestupně (použije se později např. pro graf
                 tzv. eigengapu).
         """
-        # assert  Ověřte, že l je čtvercová matice
-        raise NotImplementedError(
-            "Úkol: Implementujte spektrální embedding - pomocí numpy.linalg.eigh vypočítejte "
-            "vlastní čísla a vektory l, vyberte k vlastních vektorů odpovídajících k nejmenším "
-            "vlastním číslům a poskládejte je jako sloupce do matice embeddingu o rozměru (n, k)."
-        )
+        assert isinstance(l, np.ndarray), "l musí být typu np.ndarray"
+        assert l.ndim == 2 and l.shape[0] == l.shape[1], "l musí být čtvercová matice"
+
+        eigvals, eigvecs = np.linalg.eigh(l)
+        embedding = eigvecs[:, :k]
+
+        return embedding, eigvals

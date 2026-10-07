@@ -121,13 +121,16 @@ class DBSCAN(Clusterer):
             Seznam indexů bodů z x ležících v eps-okolí bodu
             x[point_idx] (včetně point_idx samotného).
         """
-        # assert  Ověřte, že x je typu np.ndarray a je 2D (n_vzorků x n_příznaků)
-        # assert  Ověřte, že point_idx je platný index v rozsahu [0, x.shape[0])
-        raise NotImplementedError(
-            "Úkol: Implementujte vyhledání eps-okolí bodu x[point_idx] - pro každý bod "
-            "v x spočítejte self.distance.calculate(x[point_idx], x[i]) a vraťte indexy "
-            "všech bodů, jejichž vzdálenost je <= eps (včetně point_idx samotného)."
-        )
+        assert isinstance(x, np.ndarray), "x musí být typu np.ndarray"
+        assert x.ndim == 2, "x musí být 2D pole (n_vzorků x n_příznaků)"
+        assert 0 <= point_idx < x.shape[0], "point_idx musí být platný index v rozsahu [0, x.shape[0])"
+
+        neighbors = []
+        for i in range(x.shape[0]):
+            dist = self.distance.calculate(x[point_idx], x[i])
+            if dist <= eps:
+                neighbors.append(i)
+        return neighbors
 
     def fit(self, x: np.ndarray) -> "DBSCAN":
         """
@@ -152,7 +155,7 @@ class DBSCAN(Clusterer):
               jádrový - prozatím jej označte jako šum (štítek -1).
               Pozor: toto označení je pouze prozatímní! Bod, který
               sám není jádrový, se může později stát **hraničním**
-              bodem**, pokud bude objeven jako soused nějakého jiného
+              bodem, pokud bude objeven jako soused nějakého jiného
               jádrového bodu během expanze shluku (viz krok d) - v tom
               případě se jeho štítek přepíše na id daného shluku.
            d. Pokud má bod i alespoň self.min_samples sousedů, jde o
@@ -200,16 +203,48 @@ class DBSCAN(Clusterer):
         DBSCAN
             Vrací self (self.labels_ je po volání této metody naplněno).
         """
-        # assert  Ověřte, že x je typu np.ndarray
-        # assert  Ověřte počet dimenzí (musí být 2D: n_vzorků x n_příznaků)
-        raise NotImplementedError(
-            "Úkol: Implementujte algoritmus DBSCAN podle popisu v docstringu této metody "
-            "- pro každý nenavštívený bod zjistěte jeho eps-okolí přes self._region_query, "
-            "rozhodněte, zda je jádrový (>= self.min_samples sousedů), a pokud ano, "
-            "expandujte kolem něj nový shluk (BFS/DFS). Body, které nejsou jádrové ani "
-            "nejsou dosažitelné z žádného jádrového bodu, označte jako šum (-1). Výsledek "
-            "uložte do self.labels_ a vraťte self."
-        )
+        assert isinstance(x, np.ndarray), "x musí být typu np.ndarray"
+        assert x.ndim == 2, "x musí být 2D pole (n_vzorků x n_příznaků)"
+
+        n_samples = x.shape[0]
+        labels = np.full(n_samples, -1, dtype=int)
+        visited = np.zeros(n_samples, dtype=bool)
+
+        cluster_id = -1
+
+        for i in range(n_samples):
+            if visited[i]:
+                continue
+
+            visited[i] = True
+            neighbors = self._region_query(x, i, self.eps)
+
+            if len(neighbors) < self.min_samples:
+                labels[i] = -1  # Prozatímní šum
+            else:
+                cluster_id += 1
+                labels[i] = cluster_id
+
+                # BFS / fronta pro expanzi shluku
+                queue = list(neighbors)
+                idx = 0
+                while idx < len(queue):
+                    curr = queue[idx]
+                    idx += 1
+
+                    if not visited[curr]:
+                        visited[curr] = True
+                        curr_neighbors = self._region_query(x, curr, self.eps)
+                        if len(curr_neighbors) >= self.min_samples:
+                            for n in curr_neighbors:
+                                if n not in queue:
+                                    queue.append(n)
+
+                    if labels[curr] == -1:
+                        labels[curr] = cluster_id
+
+        self.labels_ = labels
+        return self
 
     def predict(self) -> np.ndarray:
         """
